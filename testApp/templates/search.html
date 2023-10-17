@@ -1,0 +1,1516 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+
+    <title>MAG DIG | 公開求人マッチングツール</title>
+
+    <script type="module">
+        document.documentElement.classList.remove("no-js"); document.documentElement.classList.add("js");
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+    <script src="https://unpkg.com/vuejs-paginate@2.1.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.6/moment.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.6/locale/ja.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/2.1.2/sweetalert.min.js"></script>
+    <script src="https://unpkg.com/vue-tippy@4/dist/vue-tippy.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue-tippy@4/dist/vue-tippy.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue-js-toggle-button@1.3.3/dist/index.min.js"></script>   <!-- 20231004 新井追記 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/rSlider.min.css' %}">
+
+
+    <meta name="description" content="" />
+    <meta property="og:title" content="MAG DIG | 公開求人マッチングツール" />
+    <meta property="og:description" content="" />
+    <meta property="og:image" content="https://mywebsite.com/image.jpg" />
+    <meta property="og:locale" content="ja_JP" />
+
+    <link rel="icon" href="{% static 'image/favicon.ico' %}" />
+    <meta name="theme-color" content="#005ead" />
+
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_GTAG_CODE }}"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', '{{ GA_GTAG_CODE }}');
+    </script>
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+</head>
+
+<body>
+    <header>
+        <img src="{% static 'image/logo.svg' %}" alt="MAGDIGロゴ" width="178" height="34" />
+        <span style="float: right;"><button class="reset logout_process" ><a href="{% url 'logout' %}">ログアウト</a></button></span>
+        <span style="float: right; margin-right:20px;"><button class="reset"><a target="form" href="https://forms.gle/XSKoEVcvGd73mWC38">企業追加申請</a></button></span>
+    </header>
+    <main id="search" v-cloak>
+        <section class="search">
+            <div class="search_ttl">
+                <p>絞り込み検索</p>
+                <button class="reset" v-on:click="clear_search" class="set_disp_info">検索条件をリセット</button>
+            </div>
+
+            <!-- 20231015 新井追記 今週の新着案件 -->
+            <p class="form_name_ttl">
+                <img src="{% static 'image/icon_new.png' %}" class="new_icon">
+                今週の新着案件
+                <img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="今週の新着案件に絞り込むことができます">
+            </p>
+            <ul class="switch_list">
+                <template v-for="new_flg in new_flgs">
+                    <li class="switch_item_label">
+                        <span style="font-weight: bold;">[[ new_flg.name ]]</span>
+                    </li>
+                    <li class="switch_item_switch">
+                        <toggle-button :id="'new_flg_' + new_flg.id" v-model="new_flg.checked" :color="'#3376e2'" :labels="true" :sync="true" :speed="200"/>
+                    </li>
+                </template>
+            </ul>
+            <p class="form_name_ttl">求人媒体<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="求人の媒体を選択できます"></p>
+            <ul class="select_list">
+                <li class="select_item"　v-for="op_medium in op_mediums">
+                    <input type="checkbox" v-bind:id="'label_media' + op_medium.id" v-model='op_medium.checked'>
+                    <label v-bind:for="'label_media' + op_medium.id" class="checkbox">
+                        <span><img v-bind:src='op_medium.name'></span>
+                    </label>
+                </li>
+            </ul>
+            <div class="item" id="item2" data-input-name="企業名">
+                <p class="form_name_ttl">企業名<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="企業名で検索ができます。<br>LBCデータの企業名となります。"></p>
+                <div class="icon free-text">
+                    <input type="text" class="free-text" id="company" name="company" placeholder="例：株式会社マイナビ" value="" v-model="client_words">
+                </div>
+            </div>
+            <div class="item" id="item3" data-input-name="業種">
+                <div class="wrap_modal">
+                    <p class="form_name_ttl">業種<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="企業の業種を選択できます。<br>LBCの業種マスタとなります。"></p>
+                    <p class="conditions" id="disp_industries"></p>
+                    <button type="button" class="modal__btn" data-micromodal-trigger="modal-3" role="button">
+                    業種を変更・追加
+                    </button>
+                    <div id="modal-3" aria-hidden="true" class="micromodal-slide modal">
+                        <div class="modal__overlay" tabindex="-1" data-micromodal-close>
+                            <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal-3-title">
+                                <header class="modal__header">
+                                    <h2 id="modal-3-title" class="modal__title">業種</h2>
+                                    <button class="modal__close" aria-label="Close modal" data-micromodal-close></button>
+                                </header>
+                                <div id="modal-3-content" class="modal__content">
+                                    <div class="cp_tab">
+                                        <input type="radio" name="cp_tab" id="tab2_1" checked>
+                                        <label for="tab2_1">農業、林業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_2">
+                                        <label for="tab2_2">漁業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_3">
+                                        <label for="tab2_3">鉱業、採石業、砂利採取業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_4" >
+                                        <label for="tab2_4">建設業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_5" >
+                                        <label for="tab2_5">製造業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_6" >
+                                        <label for="tab2_6">電気・ガス・熱供給・水道業</label>
+
+                                        <input type="radio" name="cp_tab" id="tab2_7" >
+                                        <label for="tab2_7">情報通信業</label>
+
+                                        <input type="radio" name="cp_tab" id="tab2_8" >
+                                        <label for="tab2_8">運輸業，郵便業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_9" >
+                                        <label for="tab2_9">卸売業，小売業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_10" >
+                                        <label for="tab2_10">金融業，保険業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_11" >
+                                        <label for="tab2_11">不動産業，物品賃貸業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_12" >
+                                        <label for="tab2_12">学術研究，専門・技術サービス業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_13" >
+                                        <label for="tab2_13">宿泊業，飲食サービス業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_14" >
+                                        <label for="tab2_14">生活関連サービス業，娯楽業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_15" >
+                                        <label for="tab2_15">教育，学習支援業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_16" >
+                                        <label for="tab2_16">医療，福祉</label>
+                                        <input type="radio" name="cp_tab" id="tab2_17" >
+                                        <label for="tab2_17">複合サービス事業</label>
+                                        <input type="radio" name="cp_tab" id="tab2_18" >
+                                        <label for="tab2_18">サービス業（他に分類されないもの）</label>
+                                        <input type="radio" name="cp_tab" id="tab2_19" >
+                                        <label for="tab2_19">公務（他に分類されるものを除く）</label>
+                                        <input type="radio" name="cp_tab" id="tab2_20" >
+                                        <label for="tab2_20">分類不能の産業</label>
+
+
+                                        <div class="cp_tabpanels">
+                                            <div class="cp_tabpanel" v-for="(industry,index) in industries" >
+                                                <ul class="select_list">
+                                                    <li class="select_item column_one">
+                                                        <input type="checkbox" :id='"all" + industry.disp_order' v-on:click="all_selected_indust($event,index)" class="set_disp_info all_selecor">
+                                                        <label :for='"all" + industry.disp_order' class="checkbox">
+                                                            <span>[[ industry.name ]]すべて</span>
+                                                        </label>
+
+                                                        <ul class="select_list" v-for="industry2 in industry.industory_02">
+                                                            <!--<li class="select_item column_one"><input type="checkbox" id="sub_all1_1"><label for="sub_all1_1" class="checkbox"><span>農業すべて</span></label>-->
+                                                                <ul class="select_list sub">
+                                                                    <li class="select_item" v-for="industry3 in industry2.industory_03">
+                                                                        <input type="checkbox" :id='"label_tab" +industry.disp_order + "_" + industry3.disp_order ' :value="industry3.id_full" v-model="industry_data" class="set_disp_info industry_data" :data-industry_name="industry3.name"> <!--修正中-->
+                                                                        <label :for='"label_tab" +industry.disp_order + "_" + industry3.disp_order ' class="checkbox">
+                                                                            <span>[[ industry3.name ]]</span>
+                                                                        </label>
+                                                                    </li>
+                                                                </ul>
+                                                            </li>
+                                                        </ul>
+                                                    </li>
+                                                </ul>
+
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="center">
+                                        <button class="btn_set" type="button" data-micromodal-close>業種をセット</button>
+                                        <button class="btn_clear" type="button" v-on:click="clear_indsctg" class="set_disp_info">選択をクリア</button>
+                                    </div>
+                                </div>
+                                <footer class="modal__footer"></footer>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="item" id="item4" data-input-name="本社都道府県">
+                <div class="wrap_modal">
+                    <p class="form_name_ttl">本社都道府県</p>
+                    <p class="conditions"></p>
+                    <button type="button" class="modal__btn" data-micromodal-trigger="modal-1" role="button">
+                    本社都道府県を<br>
+                    変更・追加
+                </button>
+                    <div id="modal-1" aria-hidden="true" class="micromodal-slide modal">
+                        <div class="modal__overlay" tabindex="-1" data-micromodal-close>
+                            <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal-1-title">
+                                <header class="modal__header">
+                                    <h2 id="modal-1-title" class="modal__title">本社都道府県</h2>
+                                    <button class="modal__close" aria-label="Close modal" data-micromodal-close></button>
+                                </header>
+                                <div id="modal-1-content" class="modal__content">
+                                    <ul class="select_list">
+                                        <li class="select_item" v-for="pref in honsya_prefs">
+                                            <input type="checkbox" v-bind:id="'label' + pref.id" v-model='pref.checked'>
+                                            <label v-bind:for="'label' + pref.id" class="checkbox">
+                                                <span>[[ pref.name ]]</span>
+                                            </label>
+                                        </li>
+                                    </ul>
+                                    <div class="center">
+                                        <button class="btn_set" type="button" data-micromodal-close>都道府県をセット</button>
+                                        <button class="btn_clear" type="button" v-on:click="clear_honsya_pref">選択をクリア</button><!--チェックを外す処理-->>
+                                    </div>
+                                </div>
+                                <footer class="modal__footer"></footer>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="item" id="item5" data-input-name="勤務地都道府県">
+                <div class="wrap_modal">
+                    <p class="form_name_ttl">勤務地都道府県<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="求人の勤務地を選択できます"></p>
+                    <p class="conditions"></p>
+                    <button type="button" class="modal__btn" data-micromodal-trigger="modal-2" role="button">勤務地都道府県を<br>
+                        変更・追加</button>
+                    <div id="modal-2" aria-hidden="true" class="micromodal-slide modal">
+                        <div class="modal__overlay" tabindex="-1" data-micromodal-close>
+                            <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal-1-title">
+                                <header class="modal__header">
+                                    <h2 id="modal-2-title" class="modal__title">勤務地都道府県</h2>
+                                    <button class="modal__close" aria-label="Close modal" data-micromodal-close></button>
+                                </header>
+                                <div id="modal-2-content" class="modal__content">
+                                    <ul class="select_list">
+                                        <li class="select_item" v-for="kin_pref in kinmu_prefs">
+                                            <input type="checkbox" v-bind:id="'label1-' + kin_pref.id" v-model='kin_pref.checked'>
+                                            <label v-bind:for="'label1-' + kin_pref.id" class="checkbox">
+                                                <span>[[ kin_pref.name ]]</span>
+                                            </label>
+                                        </li>
+                                    </ul>
+                                    <div class="center">
+                                        <button class="btn_set" type="button" data-micromodal-close>都道府県をセット</button>
+                                        <button class="btn_clear" type="button" v-on:click="clear_kin_pref">選択をクリア</button>
+                                    </div>
+                                </div>
+                                <footer class="modal__footer"></footer>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="item" id="item6" data-input-name="年収">
+                <p class="form_name_ttl">年収<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="求人の年収を指定できます"></p>
+                <div class="slider-container">
+                    <input type="text" id="slider" class="slider" />
+                </div>
+            </div>
+
+            <div class="item" id="item7" data-input-name="職種">
+                <div class="wrap_modal">
+                    <p class="form_name_ttl">職種<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="求人の職種を選択できます"></p>
+                    <p class="conditions"></p>
+                    <button type="button" class="modal__btn" data-micromodal-trigger="modal-4" role="button">
+                    職種を変更・追加
+                </button>
+                    <div id="modal-4" aria-hidden="true" class="micromodal-slide modal">
+                        <div class="modal__overlay" tabindex="-1" data-micromodal-close>
+                            <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal-3-title">
+                                <header class="modal__header">
+                                    <h2 id="modal-4-title" class="modal__title">職種</h2>
+                                    <button class="modal__close" aria-label="Close modal" data-micromodal-close></button>
+                                </header>
+                                <div id="modal-4-content" class="modal__content">
+                                    <div class="cp_tab">
+                                        <input type="radio" name="cp_tab" id="occupation1_1" aria-controls="first_tab02" checked><!--aria-controls 要らない-->
+                                        <label for="occupation1_1">営業職</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_2" aria-controls="second_tab02">
+                                        <label for="occupation1_2">企画・管理系職種</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_3" aria-controls="third_tab02">
+                                        <label for="occupation1_3">エグゼクティブ</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_4">
+                                        <label for="occupation1_4">事務系職種</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_5">
+                                        <label for="occupation1_5">技術系職種(IT・通信／WEB・ゲーム)</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_6">
+                                        <label for="occupation1_6">技術系職種(機械／電気／ソフト)</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_7">
+                                        <label for="occupation1_7">技術系職種(建築設計／土木／プラント／設備)</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_8">
+                                        <label for="occupation1_8">金融関連専門職種</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_9">
+                                        <label for="occupation1_9">不動産関連職種</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_10">
+                                        <label for="occupation1_10">販売・サービス・コールセンター関連職種</label>
+
+                                        <input type="radio" name="cp_tab" id="occupation1_11">
+                                        <label for="occupation1_11">クリエーター・クリエイティブ専門職種</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_12">
+                                        <label for="occupation1_12">専門職種(コンサルタント／監査法人／士業関連)</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_13">
+                                        <label for="occupation1_13">医療系専門職種</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_14">
+                                        <label for="occupation1_14">その他職種</label>
+                                        <input type="radio" name="cp_tab" id="occupation1_15">
+                                        <label for="occupation1_15">技術系職種(化学／素材／食品／化粧品など)</label>
+
+                                        <div class="cp_tabpanels">
+                                            <div class="cp_tabpanel" v-for="(occupation1,index) in occupation">
+                                                <ul class="select_list">
+                                                    <li class="select_item column_one">
+                                                        <input type="checkbox" :id='"all_occupation" + occupation1.disp_order' v-on:click="all_selected_occup($event,index)" class="all_selecor">
+                                                        <label :for='"all_occupation" + occupation1.disp_order' class="checkbox">
+                                                            <span>[[ occupation1.name ]]すべて</span>
+                                                        </label>
+
+                                                        <ul class="select_list" v-for="occupation2 in occupation1.industory_02">
+                                                            <li class="select_item column_one">
+                                                            <!--<li class="select_item column_one"><input type="checkbox" id="occupation_sub_all1_1"><label for="occupation_sub_all1_1" class="checkbox"><span>農業すべて</span></label>-->
+                                                                <ul class="select_list sub">
+                                                                    <li class="select_item" v-for="occupation3 in occupation2.industory_03">
+                                                                        <input type="checkbox" :id='"occupatio_tab" + occupation1.disp_order + "_" + occupation3.disp_order' :value="occupation3.id" v-model="occupation_data">
+                                                                        <label :for='"occupatio_tab" + occupation1.disp_order + "_" + occupation3.disp_order' class="checkbox">
+                                                                            <span>[[ occupation3.name ]]</span>
+                                                                        </label>
+                                                                    </li>
+                                                                </ul>
+                                                            </li>
+                                                        </ul>
+
+                                                    </li>
+                                                </ul>
+
+                                            </div>
+
+
+                                        </div>
+
+                                    </div>
+
+                                    <div class="center">
+                                        <button class="btn_set" type="button" data-micromodal-close>職種をセット</button>
+                                        <button class="btn_clear" type="button" v-on:click="clear_occupation">選択をクリア</button>
+                                    </div>
+                                </div>
+                                <footer class="modal__footer"></footer>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="item" id="item8" data-input-name="キープステータス">
+                <p class="form_name_ttl">キープステータス<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="企業のキープ状態を選択できます。<br>「キープ中」：自分がキープ中の企業<br>「他者キープ中」：自分以外の人がキープ中の企業<br>「未設定」：キープ中が設定されていない企業"></p>
+                <ul class="select_list">
+                    <li class="select_item" v-for="kp_status in keep_status">
+                        <input type="checkbox" :id="'label4_' + kp_status.id" v-model="kp_status.checked">
+                        <label :for="'label4_' + kp_status.id" class="checkbox">
+                            <span>[[ kp_status.name ]]</span>
+                        </label>
+                    </li>
+                </ul>
+            </div>
+            <div class="item cp2_ra" id="item_cp2_ra" data-input-name="CP2企業RA">
+                <p class="form_name_ttl">CP2企業RA<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="企業LBCコードに紐づく、CP2企業の企業RAを選択できます。複数選択可。"></p></p>
+                <select class="js-example-basic-multiple cp2_user_id" name="states[]" multiple="multiple" style="width: 100%">
+                    <option v-for="cp2_client_ra in cp2_client_ras" :value='cp2_client_ra.userid'>[[ cp2_client_ra.disp_name ]]</option>
+                </select>
+            </div>
+            <div class="item datetime" id="item11" data-input-name="アプローチ日時">
+                <p class="form_name_ttl">アプローチ日時<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="連絡履歴のアプローチ日時で検索できます。<br>連絡履歴の中に1件でも対象レコードがあれば対象となります。"></p>
+                <input type="datetime-local" name="start" class="datetime start" v-model="approach_date_start">
+                <input type="datetime-local" name="end" class="datetime end" v-model="approach_date_end">
+            </div>
+            <div class="item datetime" id="item12" data-input-name="アプローチ日時(指定期間アプローチなし検索)">
+                <p class="form_name_ttl">アプローチ日時(指定期間アプローチなし検索)<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="選択した期間中に連絡履歴が存在しない企業を検索します。"></p>
+                <input type="datetime-local" name="except_start" class="datetime start" v-model="except_approach_date_start">
+                <input type="datetime-local" name="except_end" class="datetime end" v-model="except_approach_date_end">
+            </div>
+            <div class="item" id="item9" data-input-name="アプローチ最新結果">
+                <p class="form_name_ttl">アプローチ最新結果<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="連絡履歴の最新1件のアプローチ結果で検索できます。"></p>
+                <ul class="select_list">
+                    <li class="select_item" v-for="ap_status in approach_status">
+                        <input type="checkbox" :id="'label3_' + ap_status.id" v-model="ap_status.checked">
+                        <label :for="'label3_' + ap_status.id" class="checkbox">
+                            <span>[[ ap_status.name ]]</span>
+                        </label>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="item user" id="item_user" data-input-name="アプローチ者">
+                <p class="form_name_ttl">アプローチ者<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="連絡履歴のアプローチ者で検索ができます。<br>連絡履歴の中に1件でも対象レコードがあれば対象となります。"></p>
+                <select class="js-example-basic-multiple approach_users" name="states[]" multiple="multiple" style="width: 100%">
+                    <option v-for="user in users" :value='user.staff_no'>[[ user.disp_name ]]</option>
+                </select>
+            </div>
+
+            <div class="item department" id="item_department" data-input-name="アプローチ者所属部署">
+                <p class="form_name_ttl">アプローチ者所属部署<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="連絡履歴のアプローチ者の現在の所属部署で検索できます。<br>連絡履歴の中に1件でも対象レコードがあれば対象となります。"></p>
+                <select class="js-example-basic-multiple approach_sections" name="states[]" multiple="multiple" style="width: 100%">
+                    <option v-for="bussinesinit in bussinesinits" :value='bussinesinit.section_cd'>[[ bussinesinit.section_name ]]</option>
+                </select>
+            </div>
+
+            <div class="item cp2_id" id="item_cp2_id" data-input-name="CP2企業ID">
+                <p class="form_name_ttl">CP2企業ID<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="企業LBCコードに紐づくCP2企業の企業ID"></p>
+                <div class="no_icon_input">
+                    <input type="text" class="free-text" id="cp2_id" name="cp2_id" placeholder="000000,000000,0000000" value="" v-model="cp2_client_id">
+                </div>
+            </div>
+            <div class="item lbc_code" id="item_lbc_code" data-input-name="LBCコード">
+                <p class="form_name_ttl">LBCコード</p>
+                <div class="no_icon_input">
+                    <input type="text" class="free-text" id="lbc_code" name="lbc_code" placeholder="000000,000000,0000000" value="" v-model="lbc_code">
+                </div>
+            </div>
+
+            <div class="item matchig" id="item10" data-input-name="求職者マッチング条件">
+                <div class="wrap_modal">
+                    <p class="form_name_ttl">求職者マッチング条件</p>
+                    <p class="conditions"></p>
+                    <label for="trigger_match" class="open_match_button">求職者マッチング<br>条件の詳細を設定</label>
+                    <div class="popup_wrap">
+                        <input id="trigger_match" type="checkbox">
+                        <div class="popup_overlay">
+                            <label for="trigger_match" class="popup_trigger"></label>
+                            <div class="popup_content">
+                                <label for="trigger_match" class="close_btn">×</label>
+                                <h2 class="modal__title">求職者マッチング条件の詳細を設定<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="CP2上の求職者データで絞り込みができます"></h2>
+                                <div class="matching_box">
+                                    <div class="column">
+
+                                        <div class="item" id="item9_0" data-input-name="有効/非有効">
+                                            <p class="form_name_ttl">有効/非有効<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="求職者のアプローチステータスを基準とする。<br><br>＜有効＞<br>4:アプローチ中/5:日程変更/6:面談実施予定/11:2ndアプローチ/12:3rdアプローチ/21:4thアプローチ/14:案件付アプローチ/20:面談確定/17:面談済/25:5th/33:決定<br><br>
+                                                ＜非有効＞<br>1:未対応/2:判定中/19:判定済/3:要呼び込み/7:要レジメ促進/8:レジメ回収中/9:要レジメ促進(有効)/10:レジメ回収(有効)/13:要案件付き/15:NG/16:NG対応済/18:アプローチ不要/23:CS判定予定/24:CS判定済/22:顧問(仮登録)"></p>
+                                            <ul class="select_list">
+                                                <li class="select_item" v-for="lactive in lead_active_master">
+                                                    <div class="radio">
+                                                        <input :id='"radio-valid-" + lactive.code' name="radio_lead" type="radio" :value="lactive.id" v-model="lead_active">
+                                                        <label :for='"radio-valid-" + lactive.code' class="radio-label">[[ lactive.name ]]</label>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                        </div>
+
+
+                                        <div class="item" id="item9_1" data-input-name="求職者ステータス">
+                                            <p class="form_name_ttl">求職者ステータス<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="登録：下記いずれも当てはまらない<br><br>面談実施予定：「成約」「稼働中」に当てはまらず、現在のアプローチステータスが「面談実施予定」に設定されている<br><br>面談済み：「成約」「稼働中」に当てはまらず、現在のアプローチステータスが「面談済み」に設定されている<br><br>稼働中：「成約」は踏んでおらず、「書類選考」を1つでも踏んでいる進捗データがある<br><br>成約：「成約」を1つでも踏んでいる進捗データがある
+                                                "></p>
+                                            <ul class="select_list">
+                                                <li class="select_item" v-for="lstatus in lead_status"><input type="checkbox" :id='"label3_1_" + lstatus.id' v-model='lstatus.checked'><label :for='"label3_1_" + lstatus.id' class="checkbox"><span>[[ lstatus.name ]]</span></label></li>
+                                            </ul>
+                                        </div>
+
+                                        <div class="item" id="item9_2" data-input-name="年齢">
+                                            <p class="form_name_ttl">年齢</p>
+                                            <div class="age">
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="age_min" name="age_min" placeholder="0" value="" maxlength="12" v-model="lead_age_from">
+                                                </div>
+                                                <div>
+                                                    <p>~</p>
+                                                </div>
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="age_max" name="age_max" placeholder="100" value="" maxlength="12" v-model="lead_age_to">
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="column">
+                                        <div class="item" id="item9_3" data-input-name="性別">
+                                            <p class="form_name_ttl">性別</p>
+                                            <ul class="select_list">
+                                                <li class="select_item" v-for="lgender in lead_gender">
+                                                    <input type="checkbox" :id='"label_gender" + lgender.id' v-model='lgender.checked'>
+                                                    <label :for='"label_gender" + lgender.id' class="checkbox">
+                                                        <span>[[ lgender.name ]]</span>
+                                                    </label>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div class="item" id="item7_1" data-input-name="希望職種">
+                                            <div class="wrap_modal">
+                                                <p class="form_name_ttl">希望職種</p>
+                                                <p class="conditions"></p>
+                                                <button type="button" class="modal__btn" data-micromodal-trigger="modal7_1" role="button">希望職種を<br>変更・追加</button>
+                                                <div id="modal7_1" aria-hidden="true" class="micromodal-slide modal">
+                                                    <div class="modal__overlay" tabindex="-1" data-micromodal-close="">
+                                                        <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal7_1-title">
+                                                            <header class="modal__header">
+                                                                <h2 id="modal7_1-title" class="modal__title">職種</h2>
+                                                                <button class="modal__close" aria-label="Close modal" data-micromodal-close=""></button>
+                                                            </header>
+                                                            <div id="modal7_1-content" class="modal__content">
+                                                                <div class="cp_tab">
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_1" checked>
+                                                                    <label for="lead_occupation1_1">営業職</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_2">
+                                                                    <label for="lead_occupation1_2">企画・管理系職種</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_3">
+                                                                    <label for="lead_occupation1_3">エグゼクティブ</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_4">
+                                                                    <label for="lead_occupation1_4">事務系職種</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_5">
+                                                                    <label for="lead_occupation1_5">技術系職種(IT・通信／WEB・ゲーム)</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_6">
+                                                                    <label for="lead_occupation1_6">技術系職種(機械／電気／ソフト)</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_7">
+                                                                    <label for="lead_occupation1_7">技術系職種(建築設計／土木／プラント／設備)</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_8">
+                                                                    <label for="lead_occupation1_8">金融関連専門職種</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_9">
+                                                                    <label for="lead_occupation1_9">不動産関連職種</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_10">
+                                                                    <label for="lead_occupation1_10">販売・サービス・コールセンター関連職種</label>
+
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_11">
+                                                                    <label for="lead_occupation1_11">クリエーター・クリエイティブ専門職種</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_12">
+                                                                    <label for="lead_occupation1_12">専門職種(コンサルタント／監査法人／士業関連)</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_13">
+                                                                    <label for="lead_occupation1_13">医療系専門職種</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_14">
+                                                                    <label for="lead_occupation1_14">その他職種</label>
+                                                                    <input type="radio" name="cp_tab" id="lead_occupation1_15">
+                                                                    <label for="lead_occupation1_15">技術系職種(化学／素材／食品／化粧品など)</label>
+
+                                                                    <div class="cp_tabpanels">
+                                                                        <div class="cp_tabpanel" v-for="(lead_occupation1,index) in lead_occupation">
+                                                                            <ul class="select_list">
+                                                                                <li class="select_item column_one">
+                                                                                    <input type="checkbox" :id='"all1_occupation" + lead_occupation1.disp_order' v-on:click="all_selected_lead_occup($event,index)" class="all_selecor">
+                                                                                    <label :for='"all1_occupation" + lead_occupation1.disp_order' class="checkbox">
+                                                                                        <span>[[ lead_occupation1.name ]]すべて</span>
+                                                                                    </label>
+
+                                                                                    <ul class="select_list" v-for="lead_occupation2 in lead_occupation1.industory_02">
+                                                                                        <li class="select_item column_one">
+                                                                                        <!--<li class="select_item column_one"><input type="checkbox" id="occupation_sub_all1_1"><label for="occupation_sub_all1_1" class="checkbox"><span>農業すべて</span></label>-->
+                                                                                            <ul class="select_list sub">
+                                                                                                <li class="select_item" v-for="lead_occupation3 in lead_occupation2.industory_03">
+                                                                                                    <input type="checkbox" :id='"lead_occupation1_tab" + lead_occupation1.disp_order + "_" + lead_occupation3.disp_order + "_1"' :value="lead_occupation3.id" v-model="lead_occupation_data">
+                                                                                                    <label :for='"lead_occupation1_tab" + lead_occupation1.disp_order + "_" + lead_occupation3.disp_order + "_1"' class="checkbox">
+                                                                                                        <span>[[ lead_occupation3.name ]]</span>
+                                                                                                    </label>
+                                                                                                </li>
+                                                                                            </ul>
+                                                                                        </li>
+                                                                                    </ul>
+
+                                                                                </li>
+                                                                            </ul>
+
+                                                                        </div>
+
+
+                                                                    </div>
+
+
+                                                                </div>
+
+                                                                <div class="center">
+                                                                    <button class="btn_set" type="button" data-micromodal-close>職種をセット</button>
+                                                                    <button class="btn_clear" type="button" v-on:click="clear_lead_occupation">選択をクリア</button>
+                                                                </div>
+                                                            </div>
+                                                            <footer class="modal__footer"></footer>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="item" id="item7_2" data-input-name="希望勤務地">
+                                            <div class="wrap_modal">
+                                                <p class="form_name_ttl">希望勤務地</p>
+                                                <p class="conditions"></p>
+                                                <button type="button" class="modal__btn" data-micromodal-trigger="modal7_2" role="button">希望勤務地を<br>変更・追加</button>
+                                                <div id="modal7_2" aria-hidden="true" class="micromodal-slide modal">
+                                                    <div class="modal__overlay" tabindex="-1" data-micromodal-close="">
+                                                        <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal-1-title">
+                                                            <header class="modal__header">
+                                                                <h2 id="modal7_2-title" class="modal__title">希望勤務地</h2>
+                                                                <button class="modal__close" aria-label="Close modal" data-micromodal-close=""></button>
+                                                            </header>
+                                                            <div id="modal7_2-content" class="modal__content">
+                                                                <ul class="select_list">
+                                                                    <li class="select_item" v-for="pref in lead_prefs">
+                                                                        <input type="checkbox" v-bind:id="'label2-' + pref.id + '_1'" v-model='pref.checked'>
+                                                                        <label v-bind:for="'label2-' + pref.id + '_1'" class="checkbox">
+                                                                            <span>[[ pref.name ]]</span>
+                                                                        </label>
+                                                                    </li>
+                                                                </ul>
+                                                                <div class="center">
+                                                                    <button class="btn_set" type="button" data-micromodal-close>都道府県をセット</button>
+                                                                    <button class="btn_clear" type="button" v-on:click="clear_lead_prefs">選択をクリア</button>
+                                                                </div>
+                                                            </div>
+                                                            <footer class="modal__footer"></footer>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="item academic_history" id="item_academic_history" data-input-name="最終学歴">
+                                            <p class="form_name_ttl">最終学歴</p>
+                                            <select class="js-example-basic-multiple school" name="states[]" multiple="multiple" style="width: 100%">
+                                                <option v-for="lschool in lead_last_school" :value="lschool.id">[[ lschool.name ]]</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="item english_skill" id="item_english_skill" data-input-name="英語レベル">
+                                            <p class="form_name_ttl">英語レベル</p>
+                                            <select class="js-example-basic-multiple english" name="states[]" multiple="multiple" style="width: 100%">
+                                                <option v-for="english in lead_english_level" :value="english.id">[[ english.name ]]</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="column">
+
+                                        <div class="item" id="item6_1" data-input-name="現在年収">
+                                            <p class="form_name_ttl">現在年収</p>
+                                            <div class="age">
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="salary_min" name="salary_min" placeholder="" value=""
+                                                        maxlength="10" v-model="lead_now_income_min">
+                                                </div>
+                                                <div>
+                                                    <p>万</p>
+                                                </div>
+                                                <div>
+                                                    <p>~</p>
+                                                </div>
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="salary_max" name="salary_max" placeholder="" value=""
+                                                        maxlength="10" v-model="lead_now_income_max">
+                                                </div>
+                                                <div>
+                                                    <p>万</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="item" id="item6_2" data-input-name="希望年収">
+                                            <p class="form_name_ttl">希望年収</p>
+                                            <div class="age">
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="desired_salary_min" name="desired_salary_min" placeholder=""
+                                                        value="" maxlength="10" v-model="lead_hope_income_min">
+                                                </div>
+                                                <div>
+                                                    <p>万</p>
+                                                </div>
+                                                <div>
+                                                    <p>~</p>
+                                                </div>
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="desired_salary_max" name="desired_salary_max" placeholder=""
+                                                        value="" maxlength="10" v-model="lead_hope_income_max">
+                                                </div>
+                                                <div>
+                                                    <p>万</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="item" id="item_company_history" data-input-name="経験社数">
+                                            <p class="form_name_ttl">経験社数</p>
+                                            <div class="age">
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="company_history_min" name="company_history_min" placeholder="0" value="" maxlength="12" v-model="lead_company_history_min">
+                                                </div>
+                                                <div>
+                                                    <p>~</p>
+                                                </div>
+                                                <div class="no_icon_input">
+                                                    <input type="text" class="free-text" id="company_history_max" name="company_history_max" placeholder="100" value="" maxlength="12" v-model="lead_company_history_max">
+                                                </div>
+                                                <div>
+                                                    <p>社</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="item other_languages" id="item_other_languages" data-input-name="その他言語">
+                                            <p class="form_name_ttl">その他言語</p>
+                                            <select class="js-example-basic-multiple languages" name="states[]" multiple="multiple" style="width: 100%">
+                                                <option v-for="llanguage in lead_languages" :value="llanguage.id">[[ llanguage.name ]]</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="item" id="item_qualification" data-input-name="資格">
+                                            <div class="wrap_modal">
+                                                <p class="form_name_ttl">資格</p>
+                                                <p class="conditions"></p>
+                                                <button type="button" class="modal__btn" data-micromodal-trigger="modal_qualification" role="button">資格を<br>変更・追加</button>
+                                                <div id="modal_qualification" aria-hidden="true" class="micromodal-slide modal">
+                                                    <div class="modal__overlay" tabindex="-1" data-micromodal-close="">
+                                                        <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal_qualification">
+                                                            <header class="modal__header">
+                                                                <h2 id="modal_qualification_ttl" class="modal__title">資格</h2>
+                                                                <button class="modal__close" aria-label="Close modal" data-micromodal-close=""></button>
+                                                            </header>
+                                                            <div id="modal_qualificationqualification-content" class="modal__content">
+                                                                <div class="cp_tab">
+                                                                    <input type="radio" name="cp_tab" id="qualification1_1" checked="">
+                                                                    <label for="qualification1_1">語学</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_2" >
+                                                                    <label for="qualificationn1_2">事務</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_3">
+                                                                    <label for="qualificationn1_3">情報セキュリティ</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_4">
+                                                                    <label for="qualificationn1_4">医薬・化学</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_5">
+                                                                    <label for="qualificationn1_5">医療・福祉・健康</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_6">
+                                                                    <label for="qualificationn1_6">医療・介護</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_7">
+                                                                    <label for="qualificationn1_7">運転免許・運輸</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_8">
+                                                                    <label for="qualificationn1_8">営業・販売・サービス</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_9">
+                                                                    <label for="qualificationn1_9">教育</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_10">
+                                                                    <label for="qualificationn1_10">金融・不動産</label>
+
+                                                                    <input type="radio" name="cp_tab" id="qualification1_11">
+                                                                    <label for="qualification1_11">経理・財務・会計</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_12">
+                                                                    <label for="qualificationn1_12">法律・労務・経営・国際</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_13">
+                                                                    <label for="qualificationn1_13">建築・通信・製造・設備・技術</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_14">
+                                                                    <label for="qualificationn1_14">IT（情報処理技術者試験関連）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_15">
+                                                                    <label for="qualificationn1_15">IT（情報処理技術者試験過去実施分）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_16">
+                                                                    <label for="qualificationn1_16">IT（Oracle認定資格）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_17">
+                                                                    <label for="qualificationn1_17">IT（SAP認定資格）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_18">
+                                                                    <label for="qualificationn1_18">IT（マイクロソフト認定資格）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_19">
+                                                                    <label for="qualificationn1_19">IT（Server系）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_20">
+                                                                    <label for="qualificationn1_20">IT（Database系）</label>
+
+                                                                    <input type="radio" name="cp_tab" id="qualification1_21">
+                                                                    <label for="qualification1_21">IT（Network系）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_22">
+                                                                    <label for="qualificationn1_22">IT（Security系）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_23">
+                                                                    <label for="qualificationn1_23">IT（Web系）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_24">
+                                                                    <label for="qualificationn1_24">IT（言語開発Programming系）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_25">
+                                                                    <label for="qualificationn1_25">IT（コンサルタント系）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_26">
+                                                                    <label for="qualificationn1_26">IT（プロジェクトマネジメント系）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_27">
+                                                                    <label for="qualificationn1_27">IT（その他）</label>
+                                                                    <input type="radio" name="cp_tab" id="qualificationn1_28">
+                                                                    <label for="qualificationn1_28">その他</label>
+
+
+
+                                                                    <div class="cp_tabpanels">
+                                                                        <div class="cp_tabpanel" v-for="skill in lead_skills">
+                                                                            <ul class="select_list">
+                                                                                <li class="select_item" v-for="skill2 in skill.license_02">
+                                                                                    <input type="checkbox" :id='"qualification_tab" + skill.disp_order + "_" + skill2.disp_order' :value="skill2.id" v-model="lead_skills_data">
+                                                                                    <label :for='"qualification_tab" + skill.disp_order + "_" + skill2.disp_order' class="checkbox">
+                                                                                        <span>[[ skill2.name ]]</span>
+                                                                                    </label>
+                                                                                </li>
+                                                                            </ul>
+                                                                        </div>
+
+                                                                    </div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+                                                                    <div class="cp_tabpanels"></div>
+
+                                                                </div>
+
+                                                                <div class="center">
+                                                                    <button class="btn_set" type="button" data-micromodal-close>資格をセット</button>
+                                                                    <button class="btn_clear" type="button" v-on:click="clear_skills">選択をクリア</button>
+                                                                </div>
+                                                            </div>
+                                                            <footer class="modal__footer"></footer>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="center">
+                                    <button class="btn_set" type="button" v-on:click="modal_close">求職者マッチング条件をセット</button>
+                                    <button class="btn_clear" type="button" v-on:click="clear_lead_search">選択をクリア</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <section class="list">
+            <div v-show="loading" class="loader">
+                <div class="loader_an"></div>
+                <div class="loader_val">
+                    <span>N</span><span>O</span><span>W</span>
+                    <span>L</span><span>O</span><span>A</span><span>D</span><span>I</span><span>N</span><span>G</span>
+                </div>
+            </div>
+
+            <div class="seach_info">
+                <div class="seach_info_txt" v-if="ops.length > 0">
+                    <div class="seach_info_ttl">
+                        検索結果
+                    </div>
+                    <div class="seach_info_num">
+                        [[ total_count_disp ]]件
+                    </div>
+                </div>
+                <div class="seach_info_sort" v-if="ops.length > 0">
+                    <span class="selectLabel">並び替え：</span>
+                    <div class="dropdown" v-on:click="sort_letaring($event)">
+                        <div class="select">
+                            <span>[[ select_sort.name ]]</span>
+                        </div>
+                        <input type="hidden" name="seach_info_sort">
+                        <ul class="dropdown-menu">
+                            <li v-for="sort in sorts" v-bind:id="'sort0' + sort.id" v-on:click="put_sort(sort)">[[ sort.name ]]</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <nav class="pagination" v-if="ops.length > 0">
+                <!--
+                <div class="nav-links">
+                    <a class="first page-numbers" href="">&laquo;</a>
+                    <a class="prev page-numbers" href="">&lsaquo;</a>
+                    <span aria-current="page" class="page-numbers current">1</span>
+                    <a class="page-numbers" href="">2</a>
+                    <a class="page-numbers" href="">3</a>
+                    <span class="page-numbers dots">…</span>
+                    <a class="page-numbers" href="">10</a>
+                    <a class="next page-numbers" href="">&rsaquo;</a>
+                    <a class="last page-numbers" href="">&raquo;</a>
+                </div>
+                -->
+                <paginate
+                    v-model="client_page"
+                    :page-count="getPageCount_client"
+                    :page-range="3"
+                    :margin-pages="2"
+                    :click-handler="search_client"
+                    :prev-text="'＜'"
+                    :next-text="'＞'"
+                    :container-class="'nav-links'"
+                    :page-class="'page-numbers'">
+                </paginate>
+
+                <div class="page_num_box item">
+                    <input type="number" min="1" id="page_num" name="page_num" placeholder="1" value="" class="page_num" v-model="page_jump_num">
+                    <button class="page_jump" v-on:click="page_jump" >ページ移動</button>
+                </div>
+            </nav>
+            </div>
+            <div class="seach_box" v-for="(op,index) in ops">
+                <div class="keep_status">
+                    <div class="company_name">
+                        <img src="{% static 'image/icon_new.png' %}" class="new_icon" style="height: 55px;width: 55px;margin: 0px 5px 20px 0px;" v-if="op.new_flg_client == 1"><!-- 20231004 新井追記 -->
+                        <p class="claim_ttl ttl_icon" v-if="op.alert_flg == 1">クレーム</p>
+                        <a v-bind:href="op.url" target="_blank" rel="noopener noreferrer">[[ op.client_name ]]</a>
+                    </div>
+                    <div class="keep_content">
+                        <p v-if="op.keep_disp_flg == '1' && login_staff_no != op.keep_disp_staff_no">
+                            <input type="checkbox" :id='"label_keeping" + index ' class="tag_keeped" checked="checked" disabled="disabled">
+                            <label :for='"label_keeping" + index ' class="checkbox tag_keep keeped"><span>他者キープ</span></label>
+                        </p>
+                        <p v-else-if="op.keep_disp_flg == '1' && login_staff_no == op.keep_disp_staff_no">
+                            <input type="checkbox" :id='"label_keeping" + index ' class="tag_keeping" checked="checked" v-on:click="put_keeping(op.lbc_cd,index)">
+                            <label :for='"label_keeping" + index ' class="checkbox tag_keep tag_keeping"><span>キープ中</span></label>
+                        </p>
+                        <p v-else>
+                            <input type="checkbox" :id='"label_keeping" + index ' class="tag_keeping" v-on:click="put_keeping(op.lbc_cd,index)">
+                            <label :for='"label_keeping" + index ' class="checkbox tag_keep"><span>キープなし</span></label>
+                        </p>
+                        <div class="keep_user" v-if="op.keep_disp_flg == '1'">[[ op.keep_disp_section_name ]] [[ op.keep_disp_staff_name ]]</div>
+                        <div class="keep_date" v-if="op.keep_disp_flg == '1'">[[ op.keep_disp_date ]]</div>
+
+                    </div>
+                </div>
+                <div class="cp2_num lbc_cd">LBCコード：[[ op.lbc_cd ]]
+                </div>
+                <div class="cp2_num" v-if="op.cp2_client_id != 'None'">CP2企業NO：[[ op.cp2_client_id ]]
+                </div>
+                <div class="cp2_num" v-else>CP2企業NO：-
+                </div>
+                <div class="cp2_user" v-if="op.cp2_client_id != 'None'">CP2企業担当RA：[[ op.cp2_client_ra ]]
+                </div>
+                <div class="cp2_user" v-else>CP2企業担当RA：-
+                </div>
+
+                <div class="company_detail_wrapper">
+                    <input v-bind:id="'trigger' + (index+1)*2" class="show_trigger" type="checkbox">
+                    <label class="show_more" v-bind:for="'trigger' + (index+1)*2"></label>
+                    <div class="company_detail">
+                        <dl>
+                            <dt>電話(LBC)<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="LBCデータ内の電話番号となります"></dt>
+                            <dd v-if="op.tel_lbc == '' || op.tel_lbc == null">-</dd>
+                            <dd v-else>[[ op.tel_lbc ]]</dd>
+                            <dt>電話(doda)<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="doda求人に記載の電話番号となります">
+                            </dt>
+                            <dd v-if="op.tel_doda == '' || op.tel_doda == null">-</dd>
+                            <dd v-else>[[ op.tel_doda ]]</dd>
+                            <div class="edit_num">
+                                <dt>電話(カスタム)<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="自由に編集可能です。ご活用ください。">
+                                </dt>
+                                <dd v-if="op.tel_custom == '' || op.tel_custom == null">-</dd>
+                                <dd v-else>
+                                    [[ op.tel_custom ]]
+                                </dd>
+                                <label :for="'trigger_tell' + index+1" class="open_btn" v-on:click="search_custmtel(op.lbc_cd)">編集</label>
+                                <div class="popup_wrap">
+                                    <input :id="'trigger_tell' + index+1" type="checkbox">
+                                    <div class="popup_overlay">
+                                        <label :for="'trigger_tell' + index+1" class="popup_trigger"></label>
+                                        <div class="popup_content">
+                                            <label :for="'trigger_tell' + index+1" class="close_btn">×</label>
+                                            <div class="item" :id="'item_tel' + index" data-input-name="電話(カスタム)">
+                                                <p class="form_name_ttl">電話(カスタム) </p>
+                                                <div class="icon edit_tel">
+                                                    <input type="text" class="edit_tel" :id="'edit_tel' + index" name="edit_tel" placeholder="09012345678 ※13文字以内" v-model="custm_tel_items.custm_tel" maxlength="13">
+                                                </div>
+                                                <button class="btn_register" v-on:click="post_custmtel(op.lbc_cd)">登録する</button>
+                                            </div>
+
+                                            <div class="item" :id="'item_tel_history' + index" data-input-name="電話(カスタム)変更履歴">
+                                                <p class="form_name_ttl">変更履歴</p>
+                                                <div class="tel_history_box">
+                                                    <p v-for="custm_hstry in custm_tel_items.custm_hstry">[[ custm_hstry.disp_update_info ]]</p>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="last_date" v-if="op.tel_custom_disp_update_info == '' || op.tel_custom_disp_update_info == null"></p>
+                                <p class="last_date" v-else>(最終更新：[[ op.tel_custom_disp_update_info ]])</p>
+                            </div>
+                            <div class="column">
+                                <dt class="industry">業種</dt>
+                                <dd v-if="op.industry != null || op.industry != ''">[[ op.industry ]]<tippy>[[ op.industry ]]</tippy></dd>
+                                <dd v-else>-</dd>
+                                <dt class="address_full">本社所在地</dt>
+                                <dd>[[ op.address_full ]]<tippy>[[ op.address_full ]]</tippy></dd>
+                            </div>
+                            <div class="column">
+                                <dt>従業員数</dt>
+                                <dd>[[ op.employee_number ]]</dd>
+                                <dt>設立</dt>
+                                <dd>[[ op.foundation_ym ]]</dd>
+                            </div>
+                            <div class="column">
+                                <dt>資本金</dt>
+                                <dd v-if="op.capital != null">[[ op.capital ]]千円</dd>
+                                <dd v-else>-</dd>
+                                <dt>売上高</dt>
+                                <dd v-if="op.amount_sales != null">[[ op.amount_sales ]]円</dd>
+                                <dd v-else>-</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="company_job_offer_wrapper">
+                    <input :id="'trigger' + ((index+1)*2-1)" class="offer_more-trigger" type="checkbox">
+                    <label class="offer_more-btn" :for="'trigger' + ((index+1)*2-1)"></label>
+                    <div class="company_job_offer">
+                        <table>
+                            <tr>
+                                <th>職種</th>
+                                <th>勤務地</th>
+                                <th>年収</th>
+                                <th>CP2マッチ求人</th>
+                                <th class="cp2_tag">CP2マッチ</th>
+                                <th>候補人数</th>
+                                <th>媒体</th>
+                            </tr>
+                            <tr v-for="order in op.order">
+                                <td class="secList_indust">
+                                    <a href="#detail01" class="secList indust" v-on:click="show_detail_order($event,order.order_trn_order_sk,op.client_name)">
+                                        <img src="{% static 'image/icon_new.png' %}" class="new_icon" v-if="order.new_flg_order == 1"><!-- 20231004 新井追記 -->
+                                        [[ order.order_occupation_name ]]
+                                    </a>
+                                    <tippy>[[ order.order_occupation_name ]]</tippy>
+                                </td>
+                                <td class="work_location">[[ order.order_work_location ]]</td>
+                                <td>[[ order.order_annual_income_min ]] ~ [[ order.order_annual_income_max ]]</td>
+                                <td>[[ order.order_cp2_order_id ]]</td>
+                                <td>
+                                    <span class="tag" v-if="order.order_match_01 == '0'|| order.order_match_01 == null">職種</span>
+                                    <span class="tag active" v-else>職種</span>
+                                    <span class="tag" v-if="order.order_match_02 == '0'|| order.order_match_02 == null">勤務地</span>
+                                    <span class="tag active" v-else>勤務地</span>
+                                    <span class="tag" v-if="order.order_match_03 == '0'|| order.order_match_03 == null">年収</span>
+                                    <span class="tag active" v-else>年収</span>
+                                </td>
+                                <td><strong>[[ order.order_career_count ]]名</strong></td>
+                                <td v-if="order.order_media_id == 1"><img src="{% static 'image/Recruit_Holdings_logo.svg' %}" width="80px"></td>
+                                <td v-else><img src="{% static 'image/logo_doda.png' %}" width="40px"></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="history_wrapper">
+                    <div class="history_head">
+                        <p class="history_ttl ttl_icon">連絡履歴</p>
+                        <label :for="'trigger_history' + index" class="btn_history" v-on:click="on_contacthstry($event)">連絡履歴の追加</label>
+                        <div class="popup_wrap">
+                            <input :id="'trigger_history' + index" type="checkbox">
+                            <div class="popup_overlay">
+                                <label :for="'trigger_history' + index" class="popup_trigger"></label>
+                                <div class="popup_content">
+                                    <label :for="'trigger_history' + index" class="close_btn">×</label>
+                                    <div class="item datetime" :id="'item_date_approach' + index" data-input-name="アプローチ日">
+                                        <input type="datetime-local" name="approach" class="datetime approach" v-model="contact_hstry_item.approach_date">
+                                    </div>
+                                    <div class="item datetime" :id="'item_history_result' + index" data-input-name="アプローチ結果">
+                                        <p class="form_name_ttl">アプローチ結果</p>
+                                        <div class="dropdown" v-on:click="sort_letaring($event)">
+                                            <div class="select">
+                                                <span>[[ contact_hstry_item.select_appoint ]]</span>
+                                            </div>
+                                            <input type="hidden" name="history_result">
+                                            <ul class="dropdown-menu">
+                                                <li v-for="approach_item in contact_hstry_item.approach" :id="'result' + approach_item.id" v-on:click="put_appoint(approach_item)">[[ approach_item.name ]]</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div class="item datetime" :id="'item_date_approach_plan' + index" data-input-name="アポイント予定日" v-if="contact_hstry_item.select_appoint == 'アポイント予定'">
+                                        <input type="date" name="appoint" class="datetime appoint" v-model="contact_hstry_item.appoint_date">
+                                    </div>
+
+                                    <div class="item datetime" :id="'item_history_comment' + index" data-input-name="アプローチコメント">
+                                        <p class="form_name_ttl">アプローチコメント</p>
+                                        <div class="no_icon_input">
+                                            <textarea type="text" class="free-text" :id="'history_comment' + index" name="history_comment" placeholder="例：お電話繋がらず" v-model="contact_hstry_item.approach_comment"></textarea>
+                                        </div>
+                                    </div>
+
+                                    <button class="btn_register" v-on:click="post_contacths(op.lbc_cd,index)">登録する</button>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <table class="gray_table">
+                        <tr>
+                            <th>アプローチ日</th>
+                            <th>アプローチ結果</th>
+                            <th class="approach_comment">アプローチコメント</th>
+                            <th>アプローチ者名</th>
+                        </tr>
+                        <!--<tr v-for="contact_histry in op.contact_histry">-->
+                        <tr v-for="(contact_histry , index ) in op.contact_histry" v-if="index == 0 || index == 1">
+                            <td>[[ contact_histry.contact_history_contact_date ]]</td>
+                            <td v-if="contact_histry.contact_history_approach_name != 'アポイント予定'">[[ contact_histry.contact_history_approach_name ]]</td>
+                            <td v-else>[[ contact_histry.contact_history_approach_name ]]([[ contact_histry.contact_history_scheduled_date ]])</td>
+                            <td class="comment" :content ='`<p style="text-align:left;">${contact_histry.contact_history_body_tippy}</p>`'v-tippy><p>[[ contact_histry.contact_history_body ]]</p></td>
+                            <td>[[ contact_histry.contact_history_section_name ]] [[ contact_histry.contact_history_staff_name ]]</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="no_contact_histry" v-if="op.contact_histry.length ==0">
+                    連絡履歴がありません
+                </div>
+                <nav v-if="op.contact_histry.length !=0" class="pagination history">
+                    <!--
+                    <div class="nav-links">
+                        <a class="first page-numbers" href="">&laquo;</a>
+                        <a class="prev page-numbers" href="">&lsaquo;</a>
+                        <span aria-current="page" class="page-numbers current">1</span>
+                        <a class="page-numbers" href="">2</a>
+                        <a class="page-numbers" href="">3</a>
+                        <span class="page-numbers dots">…</span>
+                        <a class="page-numbers" href="">10</a>
+                        <a class="next page-numbers" href="">&rsaquo;</a>
+                        <a class="last page-numbers" href="">&raquo;</a>
+                    </div>
+                    -->
+                    <paginate
+                        v-model="contact_pages['contact_page_' + index]"
+                        :page-count="Math.ceil(op.contact_history_total_count / 2)"
+                        :page-range="3"
+                        :margin-pages="2"
+                        :click-handler="clickCallback_contact"
+                        :prev-text="'＜'"
+                        :next-text="'＞'"
+                        :container-class="'nav-links'"
+                        :page-class="'page-numbers'"
+                        :ref="'paginate' + index"
+                        >
+                    </paginate>
+                </nav>
+
+            </div>
+            <nav class="pagination" v-if="ops.length > 0">
+                <!--
+                <div class="nav-links">
+                    <a class="first page-numbers" href="">&laquo;</a>
+                    <a class="prev page-numbers" href="">&lsaquo;</a>
+                    <span aria-current="page" class="page-numbers current">1</span>
+                    <a class="page-numbers" href="">2</a>
+                    <a class="page-numbers" href="">3</a>
+                    <span class="page-numbers dots">…</span>
+                    <a class="page-numbers" href="">10</a>
+                    <a class="next page-numbers" href="">&rsaquo;</a>
+                    <a class="last page-numbers" href="">&raquo;</a>
+                </div>
+                -->
+                <paginate
+                    v-model="client_page"
+                    :page-count="getPageCount_client"
+                    :page-range="3"
+                    :margin-pages="2"
+                    :click-handler="search_client"
+                    :prev-text="'＜'"
+                    :next-text="'＞'"
+                    :container-class="'nav-links'"
+                    :page-class="'page-numbers'">
+                </paginate>
+            </nav>
+
+        </section>
+        <section class="detail">
+            <div class="detail_box">
+                <div id="detail00" class="default">
+                    <div class="offer_attention">
+                        こちらに求人の詳細が表示されます。
+                    </div>
+                </div>
+                <div id="detail01" class="section">
+                    <div class="company_name">[[ company_name ]]</div>
+                    <div class="offer_ttl">
+                        <a v-bind:href="url" target="_blank" rel="noopener noreferrer">[[ offer_ttl ]]</a>
+                    </div>
+                    <div class="ttl_icon detail_ttl">
+                        仕事内容
+                    </div>
+                    <p class="detail_description">
+                        [[ job_context ]]
+                    </p>
+
+                    <div class="ttl_icon date_ttl">
+                        掲載媒体/情報取得日
+                    </div>
+                    <div class="date">
+                        <img v-bind:src="job_media" width="80px">
+                        <p>
+                            [[ open_date ]]
+                        </p>
+                    </div>
+
+                    <div class="ttl_icon matching_ttl">
+                        マッチング候補者([[ match_num ]]名)<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="＜表示＞<br>「年齢(性別)/在住地/直近経験職種」<br>で表示されます。<br><br>＜条件＞<br>①希望勤務地都道府県<br>②直近経験職種<br>が一致した求職者が候補対象となります。">
+                    </div>
+                    <div class="matching_user_list">
+                    <p class="matching_user">
+                        <p v-for="career in match_career" v-on:click="get_career(career.career_id)">
+                            <label label for="trigger_user" class="user_link">[[ career.age ]]歳([[ career.gender_name ]])/[[ career.pref_name ]]在住/[[ career.occupation_name ]]</label>
+                        </p>
+                        <div class="popup_wrap">
+                            <input id="trigger_user" type="checkbox">
+                            <div class="popup_overlay">
+                                <label for="trigger_user" class="popup_trigger"></label>
+                                <div class="popup_content">
+                                    <div class="user_cp2_logo">
+                                        <img src="{% static 'image/logo_cp2.png' %}" width="30%">
+                                    </div>
+                                    <p class="user_cp2_id">
+                                        <strong>ID:</strong>[[ cp2_careerid ]]
+                                    </p>
+                                    <p class="user_status">[[ career_data ]]</p>
+
+                                    <p class="user_history_ttl ttl_icon">経験・希望条件（ご本人入力情報）</p>
+                                    <table class="gray_table">
+                                        <tr>
+                                            <th width="30%">最終学歴</th>
+                                            <td>[[ lstschlname ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th>経験社数</th>
+                                            <td>[[ expcomp_num ]]社</td>
+                                        </tr>
+                                        <tr>
+                                            <th>経験業種</th>
+                                            <td>[[ exp_industry ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th>経験職種</th>
+                                            <td>[[ exp_occupation ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th>希望業種</th>
+                                            <td>[[ wish_industry ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th>希望職種</th>
+                                            <td>[[ wish_occupation ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th>希望勤務地</th>
+                                            <td>[[ wish_wkpref ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th>希望年収</th>
+                                            <td>[[ wishannualincm_num ]]万円</td>
+                                        </tr>
+                                    </table>
+
+                                    <p class="work_history_ttl ttl_icon">職歴</p>
+                                    <table class="gray_table">
+                                        <tr>
+                                            <th rowspan="2">期間</th>
+                                            <th rowspan="2">企業名</th>
+                                            <th>部署名</th>
+                                            <th>業種</th>
+                                            <th>年収</th>
+                                        </tr>
+                                        <tr>
+                                            <th colspan="3" width="60%">職務内容</th>
+                                        </tr>
+                                        <tr>
+                                            <td rowspan="2">[[ wkperiode_date1 ]]</td>
+                                            <td rowspan="2">[[ compname1 ]]</td>
+                                            <td>[[ dept1 ]]</td>
+                                            <td>[[ indsctgname1 ]]</td>
+                                            <td>[[ annualincm1]]</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="3">【営業内容】<br>[[ wkcontents1 ]]</td>
+                                        </tr>
+                                        <!--ここから繰り返し-->
+                                        <tr v-if="wkperiode_date2 != '' && wkperiode_date2 != null">
+                                            <td rowspan="2">[[ wkperiode_date2 ]]</td>
+                                            <td rowspan="2">[[ compname2 ]]</td>
+                                            <td>[[ dept2 ]]</td>
+                                            <td>[[ indsctgname2 ]]</td>
+                                            <td>[[ annualincm2 ]]</td>
+                                        </tr>
+                                        <tr v-if="wkperiode_date2 != '' && wkperiode_date2 != null">
+                                            <td colspan="3">【営業内容】<br>[[ wkcontents2 ]]</td>
+                                        </tr>
+                                        <tr v-if="wkperiode_date3 != '' && wkperiode_date3 != null">
+                                            <td rowspan="2">[[ wkperiode_date3 ]]</td>
+                                            <td rowspan="2">[[ compname3 ]]</td>
+                                            <td>[[ dept3 ]]</td>
+                                            <td>[[ indsctgname3 ]]</td>
+                                            <td>[[ annualincm3 ]]</td>
+                                        </tr>
+                                        <tr v-if="wkperiode_date3 != '' && wkperiode_date3 != null">
+                                            <td colspan="3">【営業内容】<br>[[ wkcontents3 ]]</td>
+                                        </tr>
+                                        <tr v-if="wkperiode_date4 != '' && wkperiode_date4 != null">
+                                            <td rowspan="2">[[ wkperiode_date4 ]]</td>
+                                            <td rowspan="2">[[ compname4 ]]</td>
+                                            <td>[[ dept4 ]]</td>
+                                            <td>[[ indsctgname4 ]]</td>
+                                            <td>[[ annualincm4 ]]</td>
+                                        </tr>
+                                        <tr v-if="wkperiode_date4 != '' && wkperiode_date4 != null">
+                                            <td colspan="3">【営業内容】<br>[[ wkcontents4 ]]</td>
+                                        </tr>
+                                        <tr v-if="wkperiode_date5 != '' && wkperiode_date5 != null">
+                                            <td rowspan="2">[[ wkperiode_date5 ]]</td>
+                                            <td rowspan="2">[[ compname5 ]]</td>
+                                            <td>[[ dept5 ]]</td>
+                                            <td>[[ indsctgname5 ]]</td>
+                                            <td>[[ annualincm5 ]]</td>
+                                        </tr>
+                                        <tr v-if="wkperiode_date5 != '' && wkperiode_date5 != null">
+                                            <td colspan="3">【営業内容】<br>[[ wkcontents5 ]]</td>
+                                        </tr>
+
+                                    </table>
+                                    <p class="educational_ttl ttl_icon">学歴</p>
+                                    <table class="gray_table">
+                                        <tr>
+                                            <th width="15%">期間</th>
+                                            <th width="15%">卒業区分</th>
+                                            <th width="30%">学校名</th>
+                                            <th width="30%">学部</th>
+                                        </tr>
+                                        <tr>
+                                            <td>[[ Schcperiode_date1 ]]</td>
+                                            <td>[[ gradname1 ]]</td>
+                                            <td>[[ schlname1 ]]</td>
+                                            <td>[[ schldeptname1 ]]</td>
+                                        </tr>
+                                        <!--ここから繰り返す-->
+                                        <tr v-if="Schcperiode_date2 != '' && Schcperiode_date2 != null">
+                                            <td>[[ Schcperiode_date2 ]]</td>
+                                            <td>[[ gradname2 ]]</td>
+                                            <td>[[ schlname2 ]]</td>
+                                            <td>[[ schldeptname2 ]]</td>
+                                        </tr>
+                                        <tr v-if="Schcperiode_date3 != '' && Schcperiode_date3 != null">
+                                            <td>[[ Schcperiode_date3 ]]</td>
+                                            <td>[[ gradname3 ]]</td>
+                                            <td>[[ schlname3 ]]</td>
+                                            <td>[[ schldeptname3 ]]</td>
+                                        </tr>
+                                        <tr v-if="Schcperiode_date4 != '' && Schcperiode_date4 != null">
+                                            <td>[[ Schcperiode_date4 ]]</td>
+                                            <td>[[ gradname4 ]]</td>
+                                            <td>[[ schlname4 ]]</td>
+                                            <td>[[ schldeptname4 ]]</td>
+                                        </tr>
+                                        <tr v-if="Schcperiode_date5 != '' && Schcperiode_date5 != null">
+                                            <td>[[ Schcperiode_date5 ]]</td>
+                                            <td>[[ gradname5 ]]</td>
+                                            <td>[[ schlname5 ]]</td>
+                                            <td>[[ schldeptname5 ]]</td>
+                                        </tr>
+
+                                    </table>
+                                    <p class="qualification_ttl ttl_icon">資格</p>
+                                    <table class="gray_table">
+                                        <tr>
+                                            <th width="70%">資格名</th>
+                                            <th width="30%">取得時期</th>
+                                        </tr>
+                                        <tr>
+                                            <td>[[ licensename1 ]]</td>
+                                            <td>[[ qual_date1 ]]</td>
+                                        </tr>
+                                        <!--資格繰り返し-->
+                                        <tr v-if="licensename2 !='' && licensename2 != null">
+                                            <td>[[ licensename2 ]]</td>
+                                            <td>[[ qual_date2 ]]</td>
+                                        </tr>
+                                        <tr v-if="licensename3 !='' && licensename3 != null">
+                                            <td>[[ licensename3 ]]</td>
+                                            <td>[[ qual_date3 ]]</td>
+                                        </tr>
+                                        <tr v-if="licensename4 !='' && licensename3 != null">
+                                            <td>[[ licensename4 ]]</td>
+                                            <td>[[ qual_date4 ]]</td>
+                                        </tr>
+                                        <tr v-if="licensename5 !='' && licensename5 != null">
+                                            <td>[[ licensename5 ]]</td>
+                                            <td>[[ qual_date5 ]]</td>
+                                        </tr>
+
+                                    </table>
+                                    <p class="language_ttl ttl_icon">語学</p>
+                                    <table class="gray_table">
+                                        <tr>
+                                            <th width="20%">TOEIC</th>
+                                            <td>[[ toeic ]]</td>
+                                            <th width="20%">TOEFL</th>
+                                            <td>[[ toefl ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th width="20%">英語</th>
+                                            <td>[[ english_level ]]</td>
+                                            <th width="20%">その他言語1</th>
+                                            <td>[[ otrlang1 ]]</td>
+                                        </tr>
+                                        <tr>
+                                            <th width="20%">その他言語2</th>
+                                            <td>[[ otrlang2 ]]</td>
+                                            <th width="20%">その他言語3</th>
+                                            <td>[[ otrlang3 ]]</td>
+                                        </tr>
+
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </p>
+                    <div></div>
+                </div>
+            </div>
+        </section>
+        <div class="bottom_nav">
+            <div class="inner">
+                <button class="btn_search" v-on:click="search_client(1,$event)">検索する</button>
+                <div class="btn_condition">
+                    <div class="btn_search_check">
+                        <input type="checkbox" id="search_ch01" name="checkbox01" v-model="exit_nomach" >
+                        <label for="search_ch01" class="search_checkbox">求職者マッチがない求人の除外<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="求職者マッチング条件適用前を基準に、求人に紐づくマッチング求職者が0人の求人を除外できます"></label>
+                    </div>
+                    <div class="btn_search_check">
+                        <input type="checkbox" id="search_ch02" name="checkbox02" v-model="exit_nopublic">
+                        <label for="search_ch02" class="search_checkbox">掲載中求人がない企業の除外<img src="{% static 'image/icon_tooltip.png' %}" class="tooltip_icon" data-tippy-content="掲載中の求人がない企業を除外できます"></label>
+                    </div>
+                    <label for="trigger_save" class="btn_save">検索条件を保存する</label>
+                    <div class="popup_wrap">
+                        <input id="trigger_save" type="checkbox">
+                        <div class="popup_overlay">
+                            <label for="trigger_save" class="popup_trigger"></label>
+                            <div class="popup_content">
+                                <label for="trigger_save" class="close_btn">×</label>
+                                <div class="item" id="item_save" data-input-name="検索条件名">
+                                    <p class="form_name_ttl">検索条件名</p>
+                                    <div class="no_icon_input">
+                                        <input type="text" class="free-text" id="item_save_name" name="item_save_name" placeholder="" v-model="search_conditions">
+                                    </div>
+                                </div>
+
+                                <button class="btn_register" v-on:click="post_params">登録する</button>
+
+                            </div>
+                        </div>
+                    </div>
+                    <label class="btn_check" data-micromodal-trigger="modal-check" v-on:click="get_params">保存条件を見る</label>
+                    <div class="wrap_modal">
+                        <div id="modal-check" aria-hidden="true" class="micromodal-slide modal">
+                            <div class="modal__overlay" tabindex="-1" data-micromodal-close>
+                                <div class="modal__container" role="dialog" aria-modal="true" aria-labelledby="modal-check-title">
+                                    <header class="modal__header">
+                                        <h2 id="modal-check-title" class="modal__title">保存した検索条件</h2>
+                                        <button class="modal__close" aria-label="Close modal" data-micromodal-close></button>
+                                    </header>
+                                    <div id="modal-check-content" class="modal__content">
+                                        <div class="history_wrapper save_search">
+                                            <table id="save-table">
+                                                <tbody>
+                                                    <tr>
+                                                        <th></th>
+                                                        <th>検索名</th>
+                                                        <th>表示順</th>
+                                                        <th>作成日</th>
+                                                        <th>操作</th>
+                                                    </tr>
+                                                    <tr v-for="(s_content,index) in search_contents">
+                                                        <td class="tr_save">
+                                                            <div class="radio">
+                                                                <input :id='"radio-" + index' name="radio" type="radio" :value="s_content.trn_search_parameter_sk" v-model="select_save">
+                                                                <label :for='"radio-" + index' class="radio-label"></label>
+                                                            </div>
+
+                                                        </td>
+                                                        <td>
+                                                            <div class="item no_icon_input">
+                                                                <input type="text" class="free-text" :id='"tr_save" + index' name="seach_save01" placeholder="" v-model="s_content.title">
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="item no_icon_input">
+                                                                <input type="text" class="free-text" :id='"seach_save_sort" + index' :name='"seach_save_sort" + index' placeholder="" v-model="s_content.disp_order" maxlength="12">
+                                                            </div>
+                                                        </td>
+                                                        <td>[[ s_content.audit_created_at ]]</td>
+                                                        <td class="save_btn">
+                                                            <button class="btn_update" type="button" v-on:click="put_params(s_content , 0)">更新</button>
+                                                            <button class="btn_delete" type="button" v-on:click="put_params(s_content , 1)">削除</button>
+                                                        </td>
+                                                    </tr>
+
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <div class="center">
+                                            <button class="btn_set" type="button" v-on:click="set_params" data-micromodal-close>選択した検索条件をセット</button>
+                                        </div>
+                                    </div>
+                                    <footer class="modal__footer"></footer>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script>
+    <script src="{% static 'JS/rSlider.min.js' %}" type="text/javascript"></script>
+    <script src="{% static 'JS/micromodal.min.js' %}"></script>
+    <script src="{% static 'JS/script.js' %}" type="text/javascript"></script>
+    <script src="{% static 'JS/test_Vue.js' %}" type="module"></script>
+
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+</body>
+
+</html>

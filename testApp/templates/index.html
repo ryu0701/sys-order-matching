@@ -1,0 +1,85 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width" />
+
+		<title>MAG DIG | 公開求人マッチングツール</title>
+
+		<script type="module">
+			document.documentElement.classList.remove("no-js");
+			document.documentElement.classList.add("js");
+		</script>
+    <script src="https://unpkg.com/vue@next"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+		<link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+		<meta name="description" content="ページの説明文" />
+		<meta property="og:title" content="ページのタイトル" />
+		<meta property="og:description" content="ページの説明文" />
+		<meta property="og:image" content="https://mywebsite.com/image.jpg" />
+		<meta property="og:image:alt" content="画像の説明文" />
+		<meta property="og:locale" content="ja_JP" />
+		<meta property="og:type" content="website" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta property="og:url" content="https://mywebsite.com/page" />
+		<link rel="canonical" href="https://mywebsite.com/page" />
+
+		<link rel="icon" href="{% static 'image/favicon.ico' %}" />
+		<meta name="theme-color" content="#005ead" />
+    
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_GTAG_CODE }}"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', '{{ GA_GTAG_CODE }}');
+    </script>
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+	</head>
+
+	<body>
+  <header>
+   <img src="{% static 'image/logo.svg' %}" alt="マイナビエージェントロゴ" width="178" height="34" />
+  </header>
+  <main>
+   <div class="box box_login">
+    <p class="heading_ttl">
+     公開求人検索<br>
+     <span>Public job search</span>
+    </p>
+     <form action="{% url 'login' %}" id="from1" name="from1" method="POST">{% csrf_token %}
+
+       <div class="item" id="item" data-input-name="社員番号">
+        <p class="form_name_ttl">社員番号(s付き)</p>
+        <div class="icon number">
+         <input type="text" class="employee_number" id="employee_number" name="employee_number" required="required" placeholder="s1190736"
+          value="" maxlength="20">
+        </div>
+       </div>
+       <div class="item" id="item2" data-input-name="パスワード">
+        <p class="form_name_ttl">パスワード</p>
+        <div class="icon pass">
+         <input type="password" class="pass_number" id="pass_number" name="pass_number" required="required" placeholder="" value=""
+          maxlength="20">
+        </div>
+       </div>
+       <p class="attention error">{{ message }}</p>
+
+
+     <button type="submit" id="login" class="login">
+       <a>ログイン</a>
+      </button>
+     <p class="attention">社員番号もしくはパスワードに誤りがあります。</p>
+    </form> 
+   </div>
+   <div>
+   </div>
+  </main>
+	</body>
+</html>
